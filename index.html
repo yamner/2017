@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="jp">
+<head>
+    <meta charset="utf-8">
+    <style>body { margin: 0; overflow: hidden; } canvas { position: fixed; width: 100%; height: 100%;}</style>
+    <title>3D ゲーム</title>
+</head>
+<body>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/86/three.js"></script>
+<script src="OrbitControls.js"></script>
+<script src="js/utils/GeometryUtils.js"></script>
+
+
+<script>
+  var mesh = new THREE.Mesh( new THREE.SphereGeometry(), new THREE.MeshBasicMaterial());// dummy
+  var font_ready = new THREE.Mesh( new THREE.SphereGeometry(), new THREE.MeshBasicMaterial());// dummy
+  var font_clear = new THREE.Mesh( new THREE.SphereGeometry(), new THREE.MeshBasicMaterial());// dummy
+  var font_gover = new THREE.Mesh( new THREE.SphereGeometry(), new THREE.MeshBasicMaterial());// dummy
+  var pos = new THREE.Vector3();
+  var vel = new THREE.Vector3();
+  var stage_mesh = new Array();
+  var mousedown = false;
+  var mousePosition;
+  
+  var STATE = {
+    INIT: 0,
+    READY: 1,
+    PLAY: 2,
+    CLEAR: 3,
+    GAMEOVER: 4,
+  }
+  var state = STATE.INIT;
+  
+  // システムの初期化
+  var clock = new THREE.Clock();
+  var renderer = new THREE.WebGLRenderer();
+  var width  = window.innerWidth;
+  var height = window.innerHeight;
+  renderer.setSize( width, height );
+  document.body.appendChild( renderer.domElement );
+ 
+  // マウスクリック
+  renderer.domElement.addEventListener('mousedown', function(e){
+    mousedown = true;
+    mousePosition = {x: e.pageX/width, y: e.pageY/height};
+  }, false);
+  renderer.domElement.addEventListener('mouseup', function(e){
+    mousedown = false;
+    mousePosition = {x: e.pageX/width, y: e.pageY/height};
+  }, false);
+
+  // スマホのタッチ
+  renderer.domElement.addEventListener('touchstart', function(e){
+    mousedown = true;
+    mousePosition = {x: e.pageX/width, y: e.pageY/height};
+  }, false);
+  renderer.domElement.addEventListener('touchend', function(e){
+    mousedown = false;
+    mousePosition = {x: e.pageX/width, y: e.pageY/height};
+  }, false);
+  renderer.domElement.addEventListener('touchcancel', function(e){
+    mousedown = false;
+    mousePosition = {x: e.pageX/width, y: e.pageY/height};
+  }, false);
+
+    
+  // ライトの初期化
+  var scene = new THREE.Scene();
+  var directionalLight = new THREE.DirectionalLight( 0xffffff );
+  directionalLight.position.set( 0, 0.7, 0.7 );
+  scene.add( directionalLight );
+
+  // カメラの初期化
+  var fov    = 1;
+  var aspect = width / height;
+  var near   = 1;
+  var far    = 1000;
+  var camera = new THREE.PerspectiveCamera( fov, aspect, near, far );
+  camera.position.set( 0, 500, 0 );
+  camera.lookAt({x:0, y:0, z:0 });
+  
+  var controls = new THREE.OrbitControls(camera);
+  controls.enablePan = false;
+  controls.enableRotate = false;
+  controls.enableZoom  = false;
+
+  // キャラクターモデルの初期化
+  var load_num = 1;
+  var loader = new THREE.TextureLoader();
+  loader.load( 'land_ocean_ice_cloud_2048.jpg', function ( texture ) {
+    var geometry = new THREE.SphereGeometry( 0.5, 32, 16 );
+    var material = new THREE.MeshLambertMaterial( { map: texture } );
+    mesh = new THREE.Mesh( geometry, material );
+    scene.add( mesh );
+    if(0===--load_num)state = STATE.READY;
+  } );
+
+  // ステージの初期化  
+  var stage_data = [
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1], 
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 
+    [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2], 
+  ];
+  load_num++;
+  loader.load( 'hole.png', function ( texture ) {
+    var geometry = new THREE.BoxGeometry(1,0.2,1);
+    var material = new THREE.MeshNormalMaterial();
+    var material_tex = new THREE.MeshLambertMaterial({ map: texture });
+    for(z in stage_data){
+        stage_mesh[z] = new Array();
+        for(x in stage_data[z]){
+          switch(stage_data[z][x]){
+          case 1:
+            stage_mesh[z][x] = new THREE.Mesh(geometry, material);
+            stage_mesh[z][x].position.set(x-7.5,-0.1,z-3.5);
+            scene.add(stage_mesh[z][x]);
+            break;
+          case 2:
+            stage_mesh[z][x] = new THREE.Mesh(geometry, material_tex);
+            stage_mesh[z][x].position.set(x-7.5,-0.1,z-3.5);
+            scene.add(stage_mesh[z][x]);
+            break;
+          default:
+            break;
+          }
+        }
+    }
+    if(0===--load_num)state = STATE.READY;
+  } );
+  
+  // フォントの読み込み
+  load_num++;
+  var font_loader = new THREE.FontLoader();
+  font_loader.load( 'helvetiker_regular.typeface.json', function ( response  ) {
+    var material_font = new THREE.MeshBasicMaterial( { color: 0xff6060 } );
+    var geometry_ready = new THREE.TextGeometry( 'Ready?', {
+      font: response,
+      size: 1.5,
+      height: 0.1,
+      curveSegments: 12,
+      bevelEnabled: false,
+    } );
+    geometry_ready.center();
+    var geometry_clear = new THREE.TextGeometry( 'Clear!', {
+      font: response,
+      size: 1.5,
+      height: 0.1,
+      curveSegments: 12,
+      bevelEnabled: false,
+    } );
+    geometry_clear.center();
+    var geometry_gover = new THREE.TextGeometry( 'GAME OVER', {
+      font: response,
+      size: 1.5,
+      height: 0.1,
+      curveSegments: 12,
+      bevelEnabled: false,
+    } );
+    geometry_gover.center();
+    font_ready = new THREE.Mesh( geometry_ready, material_font );
+    font_ready.position = new THREE.Vector3(0, 5, 0);
+    font_ready.rotateX(-0.5*3.1415926535);// y軸を正面
+    font_clear = new THREE.Mesh( geometry_clear, material_font );
+    font_clear.position = new THREE.Vector3(0, 5, 0);
+    font_clear.rotateX(-0.5*3.1415926535);// y軸を正面
+    font_gover = new THREE.Mesh( geometry_gover, material_font );
+    font_gover.position = new THREE.Vector3(0, 5, 0);
+    font_gover.rotateX(-0.5*3.1415926535);// y軸を正面
+    if(0===--load_num)state = STATE.READY;
+  } );
+  var lastTime = new Date(); // 前回の時間
+  var last_state = STATE.INIT;
+  function game_loop() {
+    requestAnimationFrame( game_loop );// 次回準備
+      
+    var time = new Date();
+    var elapsedTime = time - lastTime; // 前回のstepからの経過時間
+    
+    // カメラ制御
+    controls.update();
+
+    // ブラウザのサイズを変えたときの処理
+    if ( width != window.innerWidth || height != window.innerHeight ) {
+      width  = window.innerWidth;
+      height = window.innerHeight;
+      renderer.setSize ( width, height );
+//      camera.aspect = width / height;
+//      camera.updateProjectionMatrix();
+    }
+
+    var init = false;
+    switch(state){
+    case STATE.INIT:
+      // ロード中
+      break;
+    case STATE.READY:
+      // 開始待ち
+      if(!init){
+        scene.add(font_ready);
+        init = true;
+      }
+      pos.set(-7.5,0.5,-2.5);
+      vel.set(0,0,0);
+      mesh.position.set(pos.x,pos.y,pos.z);
+      mesh.rotateY(0.001*elapsedTime);// 自転
+      if(mousedown){
+        scene.remove(font_ready);
+        state = STATE.PLAY;
+      }
+      break;
+    case STATE.PLAY:
+      // プレイ中
+      var ix = Math.floor(pos.x+8.0);
+      var iz = Math.floor(pos.z+4.0);
+      var on_surface = false;
+      var is_cup_in = false;
+      if(0 <= iz && iz < stage_data.length
+      && 0 <= ix && ix < stage_data[iz].length)
+      {
+        on_surface = (stage_data[iz][ix] !== 0);
+        is_cup_in = (stage_data[iz][ix] === 2);
+      }
+      if(pos.y < 0.4){
+          // 既に落下していたら入力は効かない
+          on_surface = false;
+      }else{
+          pos.y < 0.5;
+      }
+      if(on_surface){
+        if(mousedown){
+          if(mousePosition.x < 0.3){
+            vel.x -= 0.00001 * elapsedTime;
+          }else if(0.7 < mousePosition.x){
+            vel.x += 0.00001 * elapsedTime;
+          }
+          if(mousePosition.y < 0.3){
+            vel.z -= 0.00001 * elapsedTime;
+          }else if(0.7 < mousePosition.y){
+            vel.z += 0.00001 * elapsedTime;
+          }
+        }
+      }else{
+        vel.y -= 0.0000001 * 9.8 * elapsedTime;
+      }
+      pos.add(vel.clone().multiplyScalar(elapsedTime));
+      mesh.position.set(pos.x,pos.y,pos.z);
+      mesh.rotateY(0.001*elapsedTime);// 自転
+      // 落ちた
+      if(vel.y < -0.0001 * 10.0){
+        state = STATE.GAMEOVER;
+      }
+      // カップイン
+      if(is_cup_in){
+        state = STATE.CLEAR;
+      }
+      
+      break;
+    case STATE.CLEAR:
+      // クリア
+      if(!init){
+        scene.add(font_clear);
+        init = true;
+      }
+      if(mousedown){
+        scene.remove(font_clear);
+        state = STATE.READY;
+      }
+      break;
+    case STATE.GAMEOVER:
+      // ゲームオーバー
+      if(!init){
+        scene.add(font_gover);
+        init = true;
+      }
+      if(mousedown){
+        scene.remove(font_gover);
+        state = STATE.READY;
+      }
+      break;
+    }
+    
+    if(last_state != state){
+      mousedown = false;// 一度マウスを落とす
+      init = false;// 各状態での初期化フラグは落とす
+      last_state = state;
+    }
+
+    renderer.render( scene, camera );
+    lastTime = time;
+  }
+  game_loop();
+    
+</script>
+
+</body>
+</html>
+
+  
